@@ -15,8 +15,8 @@ def index(request):
 
 
 def reqotp(request):
-	# APIKEY = 'Your Api KEY'
-	APIKEY = 'af556d2d28c4b812fdaf722746a1a360'
+	
+	APIKEY = 'Your API KEY'
 	msisdn = request.POST.get('phone')
 
 	if msisdn == '':
