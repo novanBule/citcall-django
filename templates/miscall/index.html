@@ -1,0 +1,238 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Miscall</title>
+    
+    <script src="{% static 'jquery/jquery-3.4.1.min.js' %}"></script>
+    <link href="{% static 'bootstrap/css/bootstrap.min.css' %}" rel="stylesheet" id="bootstrap-css">
+    <script src="{% static 'bootstrap/js/bootstrap.min.js' %}"></script>
+    <script src="{% static 'js/jquery.inputmask.bundle.js'%}"></script>
+</head>
+<body>
+    
+	<div class="container">
+        <div id="requestbox" style="margin-top:50px;" class="mainbox col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2">
+            <div class="panel panel-info">
+                <div class="panel-heading">
+                    <div class="panel-title">Verify Your Mobile Number</div>
+                </div>
+                <div style="padding-top:30px" class="panel-body">
+                    <div style="display:none" id="login-alert" class="alert alert-danger col-sm-12"></div>
+                    <form class="form-horizontal">
+
+                        <div style="margin-bottom: 25px" class="input-group">
+                            <span class="input-group-addon"><i class="glyphicon glyphicon-phone"></i></span>
+                            <input type="text" class="form-control" name="phone" id="phone" value="" placeholder="Your Mobile Number" onkeyup="numberOnly(this)">
+                        </div>
+                        <div style="margin-top:10px" class="form-group">
+                            <div class="col-sm-12 controls">
+                                <button type="button" id="btn-verify" class="btn btn-success" data-loading-text="please wait" onclick="reqToken()">Request</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="col-md-12 control">
+                                <div style="border-top: 1px solid#888; padding-top:15px; font-size:85%">
+                                    Powered By
+                                    <a href="https://citcall.com">Citcall</a>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div id="validatebox" style="display:none; margin-top:50px" class="mainbox col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2">
+            <div class="panel panel-info">
+                <div class="panel-heading">
+                    <div class="panel-title" id="infovalidate"></div>
+                </div>
+                <div class="panel-body">
+                    <form id="signupform" class="form-horizontal">
+                        <div class="form-group">
+                            <label for="code" class="col-md-3 control-label">Input Code</label>
+                            <div class="col-md-9">
+                                <input type="text" class="form-control" id="code" name="code" placeholder="Input Caller">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="col-md-offset-3 col-md-9">
+                                <button id="btn-validate" type="button" class="btn btn-info" data-loading-text="please wait" onclick="verifyCode()">Verify</button>
+                            </div>
+                            <div class="pull-right" id="retry-div"><p>Didn't receive call? <button onclick="retryVerify()">Try Again</button>&nbsp;&nbsp;&nbsp;</p></div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div id="resultbox" style="display:none; margin-top:50px" class="mainbox col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2">
+            <div class="panel panel-info">
+                <div class="panel-heading">
+                    <div class="panel-title" id="infovalidate"></div>
+                </div>
+                <div class="panel-body">
+                    <center>
+                        <img class="profile-img" src="{% static 'img/verified.png' %}" alt="">
+                    </center>
+                </div>
+            </div>
+        </div>
+    </div>
+<script>
+    var trxid = '';
+    var btnVerify = $('#btn-verify');
+    var btnValidate = $('#btn-validate');
+    var msisdn = '';
+    var retry = 0;
+    var maximumRetry = 3;
+    var lengthToken = 0;
+    var validateTry = 0;
+    var maxValidateTry = 10;
+    $(document).ready(function(){
+        $("#phone").keypress(function(e){
+            var key = e.which;
+            if (key == 13) {
+                $("#btn-verify").click();
+                return false;
+            }
+        });
+        $('#code').on('input', function() {
+            var value = $('#code').val();
+            var res = value.replace("x", "");
+            if (res.length == lengthToken) {
+                verifyCode();
+            }
+        });
+    });
+    function numberOnly(ob) {
+        var invalidChars = /[^0-9]/gi
+        if(invalidChars.test(ob.value)) {
+            ob.value = ob.value.replace(invalidChars,"");
+        }
+    }
+    function showRetry(){
+        $('#retry-div').hide();
+        setTimeout(function() {
+             $('#retry-div').show();
+        }, 10000);
+    }
+    function reqToken() {
+        msisdn = $('#phone').val();
+        if(msisdn != '') {
+            $.ajax({
+                url: "{% url 'miscall:reqotp' %}",
+                method: "POST",
+                timeout: 0,
+                data:{
+                    'phone':msisdn,
+                    'csrfmiddlewaretoken':'{{ csrf_token }}',
+                },
+                beforeSend: function(){
+                    btnVerify.button('loading');
+                },
+                success: function(msg){
+                    if(msg.error === true){
+                        alert(msg.info);
+                    }else{
+                        trxid = msg.trxid;
+                        $("#code").inputmask(msg.first_token + "9999",{placeholder: "x",});
+                        lengthToken = msg.length;
+                        $('#infovalidate').text('You will be miscalled from ' + msg.first_token + 'xxxx fill the last 4 digit');
+                        $('#requestbox').hide();
+                        $('#validatebox').show();
+                        showRetry();
+                    }
+                },
+                error: function(jqXHR, textStatus, errorThrown){
+                    alert(textStatus);
+                },
+                complete: function(){
+                    btnVerify.button('reset');
+                }
+            });
+        }
+    }
+    function retryVerify() {
+        retry = retry + 1;
+        if(retry < maximumRetry) {
+            $('#retry-div').hide();
+            $.ajax({
+                url: "{% url 'miscall:reqotp' %}",
+                method: "POST",
+                timeout: 0,
+                data:{
+                    'phone':msisdn,
+                    'csrfmiddlewaretoken':'{{ csrf_token }}',
+
+                },
+                beforeSend: function(){
+                    $('#btn-validate').prop('disabled',true);
+                },
+                success: function(msg){
+                    if(msg.error === true){
+                        alert(msg.info);
+                    }else{
+                        trxid = msg.trxid;
+                        lengthToken = msg.length;
+                        $("#code").inputmask(msg.first_token + "9999",{placeholder: "x",});
+                        $('#infovalidate').text('You will be miscalled from ' + msg.first_token + 'xxxx fill the last 4 digit');
+                        showRetry();
+                    }
+                },
+                error: function(jqXHR, textStatus, errorThrown){
+                    alert(textStatus);
+                },
+                complete: function(){
+                    $('#btn-validate').prop('disabled',false);
+                }
+            });
+        } else {
+            alert('maximum retry reached!');
+            $('#retry-div').hide();
+            $('#code').val('');
+        }
+    }
+    function verifyCode(){
+        var code = $('#code').val();
+        if(code != ''){
+            validateTry = validateTry + 1;
+            if(validateTry < maxValidateTry) {
+                $.ajax({
+                    url: "{% url 'miscall:verify' %}", // verify url code
+                    method: "POST",
+                    timeout: 0,
+                    data:{
+                        'code':code,
+                        'trxid':trxid,
+                        'csrfmiddlewaretoken':'{{ csrf_token }}',
+                    },
+                    beforeSend: function(){
+                        btnValidate.button('reset');
+                    },
+                    success: function(msg){
+                        if(msg.error === true){
+                            alert(msg.info);
+                        }else{
+                            $('#requestbox').hide();
+                            $('#validatebox').hide();
+                            $('#resultbox').show();
+                            
+                        }
+                    },
+                    error: function(jqXHR, textStatus, errorThrown){
+                        alert(textStatus);
+                    },
+                    complete: function(){
+                        btnValidate.button('reset');
+                    }
+                });
+            } else {
+                alert('Maximum attempt reached!');
+                location.reload();
+            }
+        }
+    }
+</script>
+
+</body>
+</html>
